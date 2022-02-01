@@ -1,0 +1,12 @@
+# Created by https://www.gitignore.io/api/node
+
+# OS Files
+.DS_Store
+
+# VSCode project files
+.vscode
+*.code-workspace
+
+# project specific 
+archiveconv
+
