@@ -19,7 +19,7 @@ var (
 	newline = []byte{'\n'}
 )
 
-func CreateArchive(blocks map[string][]model.Block, opts ConvertOptions) (errResult error) {
+func CreateArchive(blocks map[string][]*model.Block, opts ConvertOptions) (errResult error) {
 	file, err := os.Create(opts.OutputFilename)
 	if err != nil {
 		return fmt.Errorf("cannot create archive %s: %w", opts.OutputFilename, err)
@@ -62,7 +62,7 @@ func writeArchiveVersion(zw *zip.Writer) error {
 	return nil
 }
 
-func writeBoard(zw *zip.Writer, boardID string, boardBlocks []model.Block, opts ConvertOptions) error {
+func writeBoard(zw *zip.Writer, boardID string, boardBlocks []*model.Block, opts ConvertOptions) error {
 	// create a directory per board
 	w, err := zw.Create(boardID + "/board.jsonl")
 	if err != nil {
@@ -71,6 +71,9 @@ func writeBoard(zw *zip.Writer, boardID string, boardBlocks []model.Block, opts 
 
 	// first pass to write the board.jsonl
 	for _, block := range boardBlocks {
+		if block == nil {
+			continue
+		}
 		if err := writeArchiveBlockLine(w, block); err != nil {
 			return fmt.Errorf("error writing to archive: %w", err)
 		}
@@ -78,7 +81,7 @@ func writeBoard(zw *zip.Writer, boardID string, boardBlocks []model.Block, opts 
 
 	// second pass to write out image files
 	for _, block := range boardBlocks {
-		if block.Type != "image" {
+		if block == nil || block.Type != "image" {
 			continue
 		}
 
@@ -95,7 +98,7 @@ func writeBoard(zw *zip.Writer, boardID string, boardBlocks []model.Block, opts 
 }
 
 // writeArchiveBlockLine writes a single block to the archive.
-func writeArchiveBlockLine(w io.Writer, block model.Block) error {
+func writeArchiveBlockLine(w io.Writer, block *model.Block) error {
 	b, err := json.Marshal(&block)
 	if err != nil {
 		return err
@@ -120,7 +123,7 @@ func writeArchiveBlockLine(w io.Writer, block model.Block) error {
 	return err
 }
 
-func extractImageFilename(imageBlock model.Block) (string, error) {
+func extractImageFilename(imageBlock *model.Block) (string, error) {
 	f, ok := imageBlock.Fields["fileId"]
 	if !ok {
 		return "", ErrInvalidImageBlock
@@ -135,11 +138,6 @@ func extractImageFilename(imageBlock model.Block) (string, error) {
 
 // writeArchiveFile writes a single file to the archive.
 func writeArchiveFile(zw *zip.Writer, filename string, boardID string, opts ConvertOptions) error {
-	dest, err := zw.Create(boardID + "/" + filename)
-	if err != nil {
-		return err
-	}
-
 	filespec := filepath.Join(opts.DataDir, boardID, filename)
 	src, err := os.Open(filespec)
 	if err != nil {
@@ -147,6 +145,11 @@ func writeArchiveFile(zw *zip.Writer, filename string, boardID string, opts Conv
 		return nil
 	}
 	defer src.Close()
+
+	dest, err := zw.Create(boardID + "/" + filename)
+	if err != nil {
+		return err
+	}
 
 	_, err = io.Copy(dest, src)
 	return err

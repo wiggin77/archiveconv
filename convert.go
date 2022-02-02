@@ -35,8 +35,8 @@ func Convert(archiveJSONL []byte, opts ConvertOptions) error {
 		return err
 	}
 
-	blocks := make(map[string][]model.Block) // maps board ids to blocks
-	exclude := make(map[string]struct{})     // block ids to exclude
+	blocks := make(map[string][]*model.Block) // maps board ids to blocks
+	exclude := make(map[string]struct{})      // block ids to exclude
 
 	// read all the blocks
 	lineNum := 1
@@ -62,8 +62,8 @@ func Convert(archiveJSONL []byte, opts ConvertOptions) error {
 					continue
 				}
 
-				// filter out excluded blocks and their children
-				if _, ok := exclude[block.ParentID]; ok {
+				// filter out blocks for excluded boards
+				if _, ok := exclude[block.RootID]; ok {
 					exclude[block.ID] = struct{}{}
 					continue
 				}
@@ -74,15 +74,7 @@ func Convert(archiveJSONL []byte, opts ConvertOptions) error {
 					block.Fields["templateVer"] = ArchiveDestinationVersion
 				}
 
-				if opts.ShowImageInfo {
-					if block.Type == "image" {
-						imgFilename, _ := extractImageFilename(block)
-						fmt.Printf("boardId: %s, filename: %s\n", block.RootID, imgFilename)
-					}
-					continue
-				}
-
-				block.ModifiedBy = "archiveconv"
+				block.ModifiedBy = block.CreatedBy
 				block.UpdateAt = utils.GetMillis()
 
 				var boardID string
@@ -92,9 +84,9 @@ func Convert(archiveJSONL []byte, opts ConvertOptions) error {
 					boardID = block.RootID
 				}
 				if blocks[boardID] == nil {
-					blocks[boardID] = make([]model.Block, 10)
+					blocks[boardID] = make([]*model.Block, 10)
 				}
-				blocks[boardID] = append(blocks[boardID], block)
+				blocks[boardID] = append(blocks[boardID], &block)
 			default:
 				return NewErrUnsupportedArchiveLineType(lineNum, archiveLine.Type)
 			}
@@ -109,7 +101,33 @@ func Convert(archiveJSONL []byte, opts ConvertOptions) error {
 		lineNum++
 	}
 
+	removeOrphans(blocks)
+
+	if opts.ShowImageInfo {
+		showImageInfo(blocks)
+		return nil
+	}
+
 	return CreateArchive(blocks, opts)
+}
+
+func showImageInfo(blocks map[string][]*model.Block) {
+	for _, boardBlocks := range blocks {
+		for _, block := range boardBlocks {
+			if block == nil || block.Type != "image" {
+				continue
+			}
+
+			imgFilename, _ := extractImageFilename(block)
+			board, card := getBoardAndCard(block, boardBlocks)
+			if board == nil || card == nil || !isInContentOrder(card, block) {
+				LogDebug("orphan image: ", imgFilename)
+				continue
+			}
+			fmt.Printf("boardId: %s, boardTitle: `%s`, cardID: %s, cardTitle: `%s`, filename: %s\n",
+				board.ID, board.Title, card.ID, card.Title, imgFilename)
+		}
+	}
 }
 
 func readLine(r *bufio.Reader) ([]byte, error) {

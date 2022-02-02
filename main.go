@@ -21,18 +21,19 @@ const (
 	DefaultDataDir = "./data"
 )
 
+var DebugMode bool
+
 func main() {
 	var filename string
 	var dataDir string
 	var templateMode bool
 	var showImageInfo bool
-	var debug bool
 
 	flag.StringVar(&filename, "f", "", "filename of version 1 archive")
 	flag.StringVar(&dataDir, "d", DefaultDataDir, "directory for image files")
 	flag.BoolVar(&showImageInfo, "i", false, "display image info")
 	flag.BoolVar(&templateMode, "t", false, "use archive to create default templates")
-	flag.BoolVar(&debug, "debug", false, "enable debug output")
+	flag.BoolVar(&DebugMode, "debug", false, "enable debug output")
 	flag.Parse()
 
 	if filename == "" {
@@ -63,7 +64,9 @@ func main() {
 }
 
 func LogDebug(stuff ...interface{}) {
-	_log(os.Stdout, stuff)
+	if DebugMode {
+		_log(os.Stdout, stuff)
+	}
 }
 
 func LogError(stuff ...interface{}) {
