@@ -68,12 +68,6 @@ func Convert(archiveJSONL []byte, opts ConvertOptions) error {
 					continue
 				}
 
-				// if template mode then turn all boards into board templates
-				if opts.TemplateMode && block.Type == "board" {
-					block.Fields["isTemplate"] = true
-					block.Fields["templateVer"] = ArchiveDestinationVersion
-				}
-
 				block.ModifiedBy = block.CreatedBy
 				block.UpdateAt = utils.GetMillis()
 
